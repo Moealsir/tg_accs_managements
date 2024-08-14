@@ -5,13 +5,14 @@ import asyncio
 import threading
 import sqlite3
 import re
-from telethon import TelegramClient, events  # Import missing modules
+from telethon import TelegramClient, events
 
 class SessionGUI:
     def __init__(self, root):
         self.root = root
         self.session_manager = SessionManager()
         self.session_listbox = None
+        self.client = None
 
     def create_widgets(self, parent):
         self.session_listbox = tk.Listbox(parent, selectmode=tk.SINGLE)
@@ -53,29 +54,25 @@ class SessionGUI:
 
         threading.Thread(target=run_async).start()
 
-
     def add_session(self):
         add_window = tk.Toplevel(self.root)
         add_window.title("Add Session")
 
-        # Center the add session window using the `center_window` method from this class
-        self.center_window(add_window, 300, 300)  # Pass the window and dimensions
-
-        tk.Label(add_window, text="Session Name").pack(pady=5)
+        tk.Label(add_window, text="Session Name").pack()
         name_entry = tk.Entry(add_window)
-        name_entry.pack(pady=5)
+        name_entry.pack()
 
-        tk.Label(add_window, text="API ID").pack(pady=5)
+        tk.Label(add_window, text="API ID").pack()
         api_id_entry = tk.Entry(add_window)
-        api_id_entry.pack(pady=5)
+        api_id_entry.pack()
 
-        tk.Label(add_window, text="API Hash").pack(pady=5)
+        tk.Label(add_window, text="API Hash").pack()
         api_hash_entry = tk.Entry(add_window)
-        api_hash_entry.pack(pady=5)
+        api_hash_entry.pack()
 
-        tk.Label(add_window, text="Phone Number").pack(pady=5)
+        tk.Label(add_window, text="Phone Number").pack()
         phone_entry = tk.Entry(add_window)
-        phone_entry.pack(pady=5)
+        phone_entry.pack()
 
         def save_session():
             name = name_entry.get()
@@ -91,20 +88,7 @@ class SessionGUI:
             add_window.destroy()
 
         save_btn = tk.Button(add_window, text="Save", command=save_session)
-        save_btn.pack(pady=10)
-
-
-    def center_window(self, window, width, height):
-        # Get screen width and height
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
-
-        # Calculate position x, y to place the window
-        x = (screen_width - width) // 2
-        y = (screen_height - height) // 2
-
-        # Set the dimensions and position of the window
-        window.geometry(f'{width}x{height}+{x}+{y}')
+        save_btn.pack()
 
     def remove_session(self):
         selected = self.session_listbox.curselection()
@@ -123,7 +107,6 @@ class SessionGUI:
             session_id = selected[0] + 1  # Adjust if necessary based on your session ID logic
             
             def run_async():
-                # Fetch session details from the database
                 async def fetch_session_details():
                     with sqlite3.connect(self.session_manager.db_path) as conn:
                         c = conn.cursor()
@@ -165,29 +148,25 @@ class SessionGUI:
 
                         @client.on(events.NewMessage(incoming=True))
                         async def handle_incoming_message(event):
-                            # Check if the sender is the specific phone number
-                            if event.message.sender_id:
-                                sender = await client.get_entity(event.message.sender_id)
-                                if sender.phone == '+24777':
-                                    message_text = event.message.text
+                            sender = await event.get_sender()
+                            sender_phone = getattr(sender, 'phone', None)
+                            message_text = event.message.text
 
-                                    # Regular expression patterns for extracting the login code
-                                    patterns = [
-                                        r'login code:\s*(\d+)',  # For message type 2
-                                        r'Your login code:\s*([A-Za-z0-9]+)',  # For message type 1 (alphanumeric codes)
-                                    ]
+                            patterns = [
+                                r'login code:\s*([A-Za-z0-9]+)',  # For alphanumeric codes
+                                r'Your login code:\s*([A-Za-z0-9]+)',  # Another common pattern
+                                r'Web login code:\s*([A-Za-z0-9]+)',  # For messages with Web login code
+                                r'login code:\s*(\d+)',  # Numeric codes
+                            ]
 
-                                    # Check each pattern and extract the code
-                                    for pattern in patterns:
-                                        match = re.search(pattern, message_text, re.IGNORECASE)
-                                        if match:
-                                            code = match.group(1)
-                                            
-                                            # Show the extracted code in a dialog
-                                            self.show_code_dialog(code)
-                                            
-                                            await client.disconnect()  # Stop after finding the code
-                                            return
+                            for pattern in patterns:
+                                match = re.search(pattern, message_text, re.IGNORECASE)
+                                if match:
+                                    code = match.group(1)
+                                    print(f"Extracted login code: {code}")
+                                    self.root.after(0, lambda: self.show_code_dialog(code))
+                                    await client.disconnect()  # Stop after finding the code
+                                    return
 
                         await client.connect()
                         print("Started watching messages.")
@@ -195,7 +174,7 @@ class SessionGUI:
 
                     threading.Thread(target=lambda: asyncio.run(watch_messages())).start()
                 else:
-                    messagebox.showwarning("Session Not Found", "Session ID not found in the database.")
+                    self.root.after(0, lambda: messagebox.showwarning("Session Not Found", "Session ID not found in the database."))
 
             threading.Thread(target=run_async).start()
         else:
@@ -203,9 +182,4 @@ class SessionGUI:
 
     def show_code_dialog(self, code):
         messagebox.showinfo("Login Code", f"Extracted code: {code}")
-        # Ask the user to enter the password if needed
-        password = simpledialog.askstring("Password", "Enter your password for two-step verification:")
-        if password:
-            # Handle the password (e.g., send it to the server or use it in further authentication)
-            print(f"Password entered: {password}")
-            # You may want to include further handling of the password, such as sending it to the server
+
