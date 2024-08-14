@@ -30,6 +30,7 @@ class Dashboard:
 
         tab_control.add(session_tab, text='Sessions')
         tab_control.pack(expand=1, fill='both')
+        
 
         self.session_gui.create_widgets(session_tab)
 

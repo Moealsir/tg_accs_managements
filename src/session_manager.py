@@ -64,6 +64,12 @@ class SessionManager:
 
         finally:
             await client.disconnect()
+    
+    async def update_session_name(self, session_id, new_name):
+        with sqlite3.connect(self.db_path) as conn:
+            c = conn.cursor()
+            c.execute('UPDATE sessions SET name=? WHERE id=?', (new_name, session_id))
+            conn.commit()
 
     async def get_sessions(self):
         with sqlite3.connect(self.db_path) as conn:
